@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance Display</title>
+  <link rel="stylesheet" href="index_style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Attendance Display</h1>
+    <input type="text" id="barcode-input" placeholder="Enter Barcode">
+    <button id="search-button">Search</button>
+    <div id="details-container"></div>
+    <table id="attendance-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Times</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Data will be inserted here -->
+      </tbody>
+    </table>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+    import { getDatabase, ref, get, child } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC-O58Td_hWKT9ZAIkX5B2g0WPRi_FERlU",
+      authDomain: "attendance-f7dba.firebaseapp.com",
+      databaseURL: "https://attendance-f7dba-default-rtdb.firebaseio.com",
+      projectId: "attendance-f7dba",
+      storageBucket: "attendance-f7dba.appspot.com",
+      messagingSenderId: "923168475692",
+      appId: "1:923168475692:web:d4e555a8a108fa72921f89",
+      measurementId: "G-Q4Y6GKVZ9Y"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+    const barcodeInput = document.getElementById('barcode-input');
+    const searchButton = document.getElementById('search-button');
+    const detailsContainer = document.getElementById('details-container');
+    const attendanceTableBody = document.querySelector('#attendance-table tbody');
+
+    searchButton.addEventListener('click', () => {
+      const barcode = barcodeInput.value.trim();
+      if (barcode) {
+        const dbRef = ref(database);
+
+        get(child(dbRef, `user/${barcode}`)).then((snapshot) => {
+          const userData = snapshot.val();
+          detailsContainer.innerHTML = ''; // Clear previous results
+          attendanceTableBody.innerHTML = ''; // Clear previous table rows
+
+          if (userData) {
+            const { username, Balance, StartDate, EndDate, attendance } = userData;
+
+            detailsContainer.innerHTML = `
+              <h3>Customer Details</h3>
+              <p>Customer Name: ${username}</p>
+              <p>Balance: ${Balance}</p>
+              <p>Start Date: ${StartDate}</p>
+              <p>End Date: ${EndDate}</p>
+            `;
+
+            if (attendance) {
+              for (const [date, times] of Object.entries(attendance)) {
+                const row = document.createElement('tr');
+                const dateCell = document.createElement('td');
+                const timesCell = document.createElement('td');
+
+                dateCell.textContent = date;
+                timesCell.textContent = times.join(', ');
+
+                row.appendChild(dateCell);
+                row.appendChild(timesCell);
+                attendanceTableBody.appendChild(row);
+              }
+            } else {
+              detailsContainer.innerHTML += '<p>No attendance records found.</p>';
+            }
+          } else {
+            detailsContainer.innerHTML = 'Barcode value not found';
+          }
+        }).catch((error) => {
+          console.error('Error fetching data:', error);
+        });
+      } else {
+        alert('Please enter a barcode');
+      }
+    });
+  </script>
+  <script src="script.js"></script>
+</body>
+</html>

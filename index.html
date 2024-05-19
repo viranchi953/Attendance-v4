@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance by Barcode</title>
+  <script src="html5-qrcode.min.js"></script>
+  <link rel="stylesheet" href="index_style.css">
+</head>
+<body>
+  <div class="container">
+    <button onclick="formPage()">Add or Update</button>
+    <button onclick="historyPage()">View History</button>
+    <h1>Attendance by Barcode</h1>
+    <div id="reader"></div>
+    <div id="scanResult"></div>
+    <audio id="beepSound" src="beep.mp3" preload="auto"></audio>
+
+    <input type="text" id="barcode-input" placeholder="Enter Barcode">
+    <button id="search-button">Search</button>
+    <div id="details-container"></div>
+    <audio id="alertSound" src="alert.mp3" preload="auto"></audio>
+  </div>
+
+  <script type="module">
+    // Barcode scanner logic
+    function onScanSuccess(decodedText, decodedResult) {
+      const scanResultElement = document.getElementById('scanResult');
+      scanResultElement.innerHTML = `Scan result: ${decodedText}`;
+      console.log(`Scan result: ${decodedText}`, decodedResult);
+
+      // Update the barcode-input field with the scanned value
+      const barcodeInput = document.getElementById('barcode-input');
+      barcodeInput.value = decodedText;
+
+      // Play the beep sound
+      const beepSound = document.getElementById('beepSound');
+      beepSound.play();
+
+      // Vibrate for 200 milliseconds (adjust as needed)
+      if (navigator.vibrate) {
+        navigator.vibrate(200);
+      }
+    }
+
+    function onScanError(errorMessage) {
+      console.error(errorMessage);
+    }
+
+    var html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader", { fps: 10, qrbox: 250 });
+    html5QrcodeScanner.render(onScanSuccess, onScanError);
+
+    // Firebase logic
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+    import { getDatabase, ref, get, set, child, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyC-O58Td_hWKT9ZAIkX5B2g0WPRi_FERlU",
+      authDomain: "attendance-f7dba.firebaseapp.com",
+      databaseURL: "https://attendance-f7dba-default-rtdb.firebaseio.com",
+      projectId: "attendance-f7dba",
+      storageBucket: "attendance-f7dba.appspot.com",
+      messagingSenderId: "923168475692",
+      appId: "1:923168475692:web:d4e555a8a108fa72921f89",
+      measurementId: "G-Q4Y6GKVZ9Y"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+    const barcodeInput = document.getElementById('barcode-input');
+    const searchButton = document.getElementById('search-button');
+    const detailsContainer = document.getElementById('details-container');
+
+    searchButton.addEventListener('click', () => {
+      const barcode = barcodeInput.value.trim();
+      if (barcode) {
+        const dbRef = ref(database);
+
+        get(child(dbRef, `user/${barcode}`)).then((snapshot) => {
+          const userData = snapshot.val();
+          detailsContainer.innerHTML = ''; // Clear previous results
+          if (userData) {
+            const { username, Balance, StartDate, EndDate } = userData;
+
+            // Check if EndDate has passed
+            const today = new Date().getTime(); // Get today's timestamp in milliseconds
+            const endDate = new Date(EndDate).getTime(); // Convert EndDate string to timestamp
+
+            if (endDate < today) {
+              detailsContainer.innerHTML = `
+                <h3>Customer Details</h3>
+                <h4>Payment Due</h4>
+                <p>Customer Name: ${username}</p>
+                <p>Balance: ${Balance}</p>
+                <p>Start Date: ${StartDate}</p>
+                <p>End Date: ${EndDate} (Expired)</p>
+              `;
+
+              // Play the alert sound using the existing audio element
+              const alertSound = document.getElementById('alertSound');
+              alertSound.play();
+            } else {
+              detailsContainer.innerHTML = `
+                <h3>Customer Details</h3>
+                <p>Customer Name: ${username}</p>
+                <p>Balance: ${Balance}</p>
+                <p>Start Date: ${StartDate}</p>
+                <p>End Date: ${EndDate}</p>
+              `;
+            }
+
+            // Get the current date and time
+            const currentDate = new Date();
+            const date = currentDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+            const time = currentDate.toTimeString().split(' ')[0]; // Format as HH:MM:SS
+
+            // Reference to the attendance array for the current date
+            const attendanceRef = ref(database, `user/${barcode}/attendance/${date}`);
+
+            get(attendanceRef).then((attendanceSnapshot) => {
+              let attendanceData = attendanceSnapshot.val();
+              if (!attendanceData) {
+                attendanceData = [];
+              }
+              attendanceData.push(time);
+
+              // Update the attendance data with the new time
+              set(attendanceRef, attendanceData).then(() => {
+                console.log('Time added successfully');
+              }).catch((error) => {
+                console.error('Error adding time:', error);
+              });
+            }).catch((error) => {
+              console.error('Error fetching attendance data:', error);
+            });
+          } else {
+            detailsContainer.innerHTML = 'Barcode value not found';
+          }
+        }).catch((error) => {
+          console.error('Error fetching data:', error);
+        });
+      } else {
+        alert('Please enter a barcode');
+      }
+    });
+  </script>
+  <script src="script.js"></script>
+</body>
+</html>
